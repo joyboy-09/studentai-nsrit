@@ -1,9 +1,3 @@
-"""
-StudentAI — FastAPI Backend
-Main application with all API routes for authentication, document management,
-AI quiz generation, flashcards, chat, math solving, and task assignment.
-"""
-
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -14,41 +8,45 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
 
-from database import get_db, init_db
-from models import User, Document, Quiz, Flashcard, ChatMessage, Task
-from auth import (
-    get_password_hash,
-    verify_password,
-    create_access_token,
-    get_current_user,
-)
-from file_parser import extract_text, get_file_type
-from ai_engine import (
-    process_document,
-    generate_quiz,
-    generate_flashcards,
-    chat_with_document,
-    chat_with_document_and_text,
-    solve_math,
-    generate_tasks,
-    answer_topic_question,
-    is_api_key_configured,
-)
-
+app_error = None
+try:
+    from sqlalchemy.orm import Session
+    from pydantic import BaseModel, EmailStr
+    from database import get_db, init_db
+    from models import User, Document, Quiz, Flashcard, ChatMessage, Task
+    from auth import (
+        get_password_hash,
+        verify_password,
+        create_access_token,
+        get_current_user,
+    )
+    from file_parser import extract_text, get_file_type
+    from ai_engine import (
+        process_document,
+        generate_quiz,
+        generate_flashcards,
+        chat_with_document,
+        chat_with_document_and_text,
+        solve_math,
+        generate_tasks,
+        answer_topic_question,
+        is_api_key_configured,
+    )
+except Exception as e:
+    import traceback
 # ─── App Setup ───────────────────────────────────────────────────────────────
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    # Ensure default user exists for local auth mode
-    from auth import ensure_default_user
-    db = next(get_db())
-    ensure_default_user(db)
-    db.close()
+    if not app_error:
+        init_db()
+        # Ensure default user exists for local auth mode
+        from auth import ensure_default_user
+        db = next(get_db())
+        ensure_default_user(db)
+        db.close()
     print("🚀 StudentAI API started!")
     yield
 
@@ -847,13 +845,16 @@ async def dashboard_stats(
 # ─── Health Check ────────────────────────────────────────────────────────────
 
 @app.get("/api/health")
-async def health_check():
-    return {
-        "status": "ok",
-        "service": "StudentAI API",
-        "version": "1.0.0",
-        "ai_configured": is_api_key_configured(),
-    }
+def health_check():
+    if app_error:
+        return {"status": "error", "error": app_error}
+    return {"status": "ok", "message": "StudentAI backend is running natively on Vercel"}
+
+@app.get("/api")
+def api_root():
+    if app_error:
+        return {"status": "error", "error": app_error}
+    return {"message": "Welcome to StudentAI API", "docs_url": "/docs"}
 
 
 # ─── Run ─────────────────────────────────────────────────────────────────────
