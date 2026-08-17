@@ -1,0 +1,9 @@
+{
+  "name": "studentai-nsrit",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    }
+  ]
+}

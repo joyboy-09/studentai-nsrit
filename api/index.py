@@ -5,6 +5,8 @@ AI quiz generation, flashcards, chat, math solving, and task assignment.
 """
 
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import shutil
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -67,7 +69,10 @@ app.add_middleware(
 )
 
 # Create uploads directory
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+if os.environ.get("VERCEL") == "1":
+    UPLOAD_DIR = "/tmp/uploads"
+else:
+    UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ─── Pydantic Schemas ───────────────────────────────────────────────────────
