@@ -3,7 +3,7 @@
  * Proper name-based entry with full_name stored, display helpers included.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 // ─── Token & User Management ───────────────────────────────────────────────
 
