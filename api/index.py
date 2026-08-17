@@ -35,26 +35,10 @@ try:
     )
 except Exception as e:
     import traceback
-# ─── App Setup ───────────────────────────────────────────────────────────────
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if not app_error:
-        init_db()
-        # Ensure default user exists for local auth mode
-        from auth import ensure_default_user
-        db = next(get_db())
-        ensure_default_user(db)
-        db.close()
-    print("🚀 StudentAI API started!")
-    yield
-
 app = FastAPI(
     title="StudentAI API",
     description="AI-powered learning platform backend",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 # CORS — allow frontend to connect
