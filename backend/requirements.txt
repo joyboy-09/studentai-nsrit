@@ -1,0 +1,18 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+pydantic
+pydantic-settings
+python-dotenv
+
+# File Parsing
+pymupdf
+python-pptx
+python-docx
+
+# Misc
+aiofiles
