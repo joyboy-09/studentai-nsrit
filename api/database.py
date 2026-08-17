@@ -27,8 +27,18 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+db_initialized = False
+
 def get_db():
     """Dependency to get a database session."""
+    global db_initialized
+    if not db_initialized:
+        try:
+            init_db()
+            db_initialized = True
+        except Exception as e:
+            print("Failed to initialize database:", e)
+    
     db = SessionLocal()
     try:
         yield db
@@ -40,4 +50,14 @@ def init_db():
     """Create all tables in the database."""
     from models import User, Document, Quiz, Flashcard, ChatMessage, Task
     Base.metadata.create_all(bind=engine)
+    
+    # Ensure default user exists for local auth mode
+    try:
+        from auth import ensure_default_user
+        db = SessionLocal()
+        ensure_default_user(db)
+        db.close()
+    except Exception as e:
+        print("Could not create default user:", e)
+        
     print("✅ Database tables created successfully!")
