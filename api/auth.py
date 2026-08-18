@@ -1,7 +1,7 @@
 """
 Authentication module for StudentAI.
 Handles JWT token creation/validation and password hashing with bcrypt.
-Supports local auth mode (frontend-generated tokens) without database user lookup.
+Works with Firebase Realtime Database models.
 """
 
 import base64
@@ -12,8 +12,6 @@ from jose import JWTError, jwt
 import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from database import get_db
 import os
 from dotenv import load_dotenv
 
@@ -87,29 +85,24 @@ def _try_decode_local_token(token: str) -> Optional[str]:
         return None
 
 
-def ensure_default_user(db: Session):
+def ensure_default_user():
     """Ensure a default user exists for local auth mode."""
     from models import User
 
-    user = db.query(User).filter(User.id == DEFAULT_USER_ID).first()
+    user = User.get_by_id(DEFAULT_USER_ID)
     if not user:
-        user = User(
-            id=DEFAULT_USER_ID,
+        user = User.create(
             username="student",
             email="student@local.app",
             full_name="Student User",
             hashed_password=get_password_hash("local"),
             avatar_url="",
         )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
     return user
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
 ):
     """
     Dependency to get the current authenticated user.
@@ -123,7 +116,7 @@ async def get_current_user(
     local_username = _try_decode_local_token(token)
     if local_username is not None:
         # Local auth mode - use or create default user
-        user = ensure_default_user(db)
+        user = ensure_default_user()
         return user
 
     # Fall back to standard JWT decoding
@@ -135,7 +128,7 @@ async def get_current_user(
             detail="Invalid token payload",
         )
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = User.get_by_id(int(user_id))
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

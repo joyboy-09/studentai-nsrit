@@ -1,63 +1,77 @@
 """
-Database configuration and session management for StudentAI.
-Uses SQLite for development, easily swappable to PostgreSQL for production.
+Database configuration for StudentAI.
+Uses Firebase Realtime Database as the backend.
 """
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
 import os
+import json
+import firebase_admin
+from firebase_admin import credentials, db as firebase_db
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Vercel's root filesystem is read-only. We must use /tmp if running on Vercel.
-is_vercel = os.getenv("VERCEL") == "1"
-default_db_path = "sqlite:////tmp/studentai.db" if is_vercel else "sqlite:///./studentai.db"
-
-DATABASE_URL = os.getenv("DATABASE_URL", default_db_path)
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
-    echo=False,
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
+_initialized = False
 
 
-db_initialized = False
+def _init_firebase():
+    """Initialize Firebase Admin SDK."""
+    global _initialized
+    if _initialized:
+        return
 
-def get_db():
-    """Dependency to get a database session."""
-    global db_initialized
-    if not db_initialized:
-        try:
-            init_db()
-            db_initialized = True
-        except Exception as e:
-            print("Failed to initialize database:", e)
-    
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    database_url = os.getenv("FIREBASE_DATABASE_URL", "")
+    service_account_path = os.getenv(
+        "FIREBASE_SERVICE_ACCOUNT_KEY",
+        os.path.join(os.path.dirname(__file__), "serviceAccountKey.json"),
+    )
+
+    if not database_url:
+        raise RuntimeError(
+            "FIREBASE_DATABASE_URL is not set. "
+            "Add it to your .env file, e.g.: "
+            "FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com"
+        )
+
+    cred = None
+    if os.path.exists(service_account_path):
+        cred = credentials.Certificate(service_account_path)
+    else:
+        # Try loading from environment variable as JSON string
+        sa_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if sa_json:
+            cred = credentials.Certificate(json.loads(sa_json))
+        else:
+            raise RuntimeError(
+                f"Firebase service account key not found at '{service_account_path}' "
+                "and FIREBASE_SERVICE_ACCOUNT_JSON env var is not set."
+            )
+
+    firebase_admin.initialize_app(cred, {"databaseURL": database_url})
+    _initialized = True
+    print("✅ Firebase Realtime Database connected!")
+
+
+def get_db_ref(path: str = "/"):
+    """Get a Firebase Realtime Database reference for the given path."""
+    _init_firebase()
+    return firebase_db.reference(path)
+
+
+def get_next_id(collection: str) -> int:
+    """
+    Generate an auto-incrementing integer ID for a collection.
+    Uses a /counters/{collection} node in Firebase.
+    """
+    _init_firebase()
+    counter_ref = firebase_db.reference(f"/counters/{collection}")
+    current = counter_ref.get() or 0
+    next_id = current + 1
+    counter_ref.set(next_id)
+    return next_id
 
 
 def init_db():
-    """Create all tables in the database."""
-    from models import User, Document, Quiz, Flashcard, ChatMessage, Task
-    Base.metadata.create_all(bind=engine)
-    
-    # Ensure default user exists for local auth mode
-    try:
-        from auth import ensure_default_user
-        db = SessionLocal()
-        ensure_default_user(db)
-        db.close()
-    except Exception as e:
-        print("Could not create default user:", e)
-        
-    print("✅ Database tables created successfully!")
+    """Initialize Firebase connection and ensure default data exists."""
+    _init_firebase()
+    print("✅ Firebase database initialized!")
